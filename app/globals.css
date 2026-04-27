@@ -1,26 +1,223 @@
-@import "tailwindcss";
-
+/* frontend/app/globals.css */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #111111;
+  --card-bg: #ffffff;
+  --border: #eaeaea;
+  --input-bg: #fafafa;
+  --primary: #0070f3; /* Warna Biru Khas Next.js / Modern */
+  --primary-hover: #0051b3;
+  --ring: rgba(0, 112, 243, 0.25);
+  --muted: #666666;
+  --radius: 12px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Layout Utilities */
+.modern-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  /* Efek glow halus di background khas Next.js */
+  background: radial-gradient(circle at 50% -20%, #e2f0fd, var(--background) 50%);
+}
+
+.modern-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+}
+
+/* Typography */
+.text-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+  color: #000;
+}
+
+.text-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+
+.text-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #444;
+}
+
+/* Form Elements */
+.modern-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--input-bg);
+  font-size: 14px;
+  color: var(--foreground);
+  transition: all 0.2s ease;
+  outline: none;
+  font-family: inherit;
+}
+
+.modern-input:focus {
+  border-color: var(--primary);
+  background-color: #fff;
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.modern-button {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-family: inherit;
+  margin-top: 10px;
+}
+
+.modern-button:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.modern-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.error-box {
+  background-color: #fff0f0;
+  border-left: 4px solid #ff4d4f;
+  color: #cf1322;
+  padding: 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+/* TAMBAHKAN KODE INI DI BAGIAN BAWAH FILE GLOBALS.CSS ANDA */
+
+/* Layout Khusus Halaman Login Split Card */
+.split-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background-color: #f1f5f9; /* Latar belakang abu-abu sangat muda */
+}
+
+.split-card {
+  display: flex;
+  flex-direction: column; /* Default untuk Mobile: Menumpuk atas-bawah */
+  width: 100%;
+  max-width: 1000px;
+  background: var(--card-bg);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.split-left {
+  /* Warna Navy Blue khas Pemerintahan */
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+  padding: 40px 30px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  position: relative;
+}
+
+/* Pola ornamen halus di background kiri */
+.split-left::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: radial-gradient(circle at 20% 30%, rgba(255,255,255,0.05) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.split-right {
+  padding: 40px 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: #ffffff;
+}
+
+.logo-jaktim {
+  width: 90px;
+  height: auto;
+  margin-bottom: 24px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); /* Bayangan pada logo */
+}
+
+/* BREAKPOINT UNTUK IPAD & DESKTOP 
+  Saat layar mencapai 768px (Tablet), card akan terbelah kiri-kanan
+*/
+@media (min-width: 768px) {
+  .split-card {
+    flex-direction: row; /* Berubah menjadi kiri-kanan */
+  }
+  .split-left {
+    width: 45%;
+    padding: 60px 50px;
+  }
+  .split-right {
+    width: 55%;
+    padding: 60px 70px;
+  }
+  .logo-jaktim {
+    width: 110px;
+  }
+}
+
+/* Efek hover untuk baris tabel */
+.table-row-hover:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Responsif tambahan untuk Halaman Jadwal (Agenda Card) */
+@media (max-width: 640px) {
+  /* Hilangkan garis batas vertikal dan ganti dengan margin di HP */
+  div[style*="borderRight: 2px dashed"] {
+    border-right: none !important;
+    border-bottom: 2px dashed #e2e8f0;
+    padding-right: 0 !important;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+  }
 }
