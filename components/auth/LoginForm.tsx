@@ -1,12 +1,11 @@
 // frontend/components/auth/LoginForm.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/axios';
-import Cookies from 'js-cookie';
-import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import { toast, Toaster } from 'react-hot-toast';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -14,114 +13,135 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('remembered_email');
+    if (savedEmail) { setEmail(savedEmail); setRememberMe(true); }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setIsLoading(true);
-
+    const loadToast = toast.loading('Memverifikasi...');
     try {
-      // 1. Kirim data login ke API Laravel
       const response = await api.post('/login', { email, password });
       const user = response.data.user;
-      const token = response.data.access_token;
-
-      // ==========================================================
-      // 2. LOGIKA VALIDASI ROLE (PAGAR BETIS)
-      // ==========================================================
-      // Kita pastikan role harus 'user_bagian' (case-sensitive sesuai database)
-      if (user.role !== 'user_bagian') {
-        setError('⚠️ AKSES DITOLAK: Portal ini khusus untuk User Unit Kerja/Bagian. Pimpinan, Asisten, dan Admin dilarang masuk melalui pintu ini.');
-        setIsLoading(false);
-        return; // BERHENTI: Token TIDAK disimpan, login digagalkan.
+      const token = response.data.token || response.data.access_token;
+      if (user?.role?.toLowerCase() !== 'user_bagian') {
+        setError("Akses Ditolak! Khusus Portal Unit Kerja.");
+        toast.error('Akses ditolak!', { id: loadToast });
+        setIsLoading(false); return;
       }
-
-      // ==========================================================
-      // 3. JIKA LOLOS (User adalah user_bagian)
-      // ==========================================================
-      // Simpan token ke Cookies (berlaku 1 hari)
-      Cookies.set('token', token, { expires: 1 });
-      // Simpan data user ke LocalStorage untuk keperluan UI
+      document.cookie = `token=${token}; path=/; max-age=86400`;
       localStorage.setItem('user', JSON.stringify(user));
-      
-      // Redirect ke Dashboard Utama secara refresh total (Hard Redirect)
-      window.location.href = '/dashboard';
-      
+      if (rememberMe) { localStorage.setItem('remembered_email', email); } 
+      else { localStorage.removeItem('remembered_email'); }
+      toast.success('Login Berhasil!', { id: loadToast });
+      setTimeout(() => { window.location.href = '/dashboard'; }, 1000);
     } catch (err: any) {
-      // Menampilkan pesan error dari Laravel (misal: "Invalid credentials")
-      setError(err.response?.data?.message || 'Email atau password salah. Silakan coba lagi.');
-      setIsLoading(false); 
-    } 
-  };
-
-  const handleLupaPassword = () => {
-    router.push('/forgot-password');
+      setError('Email atau password salah.');
+      toast.error('Gagal masuk!', { id: loadToast });
+      setIsLoading(false);
+    }
   };
 
   return (
-    <form 
-      onSubmit={handleLogin} 
-      style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
-    >
-      {/* Alert Error Box */}
-      {error && (
-        <div style={{ 
-          background: '#fef2f2', 
-          borderLeft: '4px solid #ef4444', 
-          color: '#991b1b', 
-          padding: '16px', 
-          fontSize: '13px', 
-          borderRadius: '8px', 
-          fontWeight: 600, 
-          lineHeight: 1.5 
-        }}>
-          {error}
-        </div>
-      )}
+    <form onSubmit={handleLogin} className="login-form">
+      <Toaster position="top-center" />
+      <style dangerouslySetInnerHTML={{__html: `
+        .login-form { display: flex; flex-direction: column; gap: 20px; width: 100%; font-family: var(--font-jakarta), sans-serif; }
+        .input-wrapper { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+        .input-label { font-size: 13px; font-weight: 700; color: #334155; }
+        
+        .relative-box { 
+          position: relative; width: 100%; display: flex; align-items: center; 
+        }
+        
+        .custom-input {
+          width: 100%;
+          padding: 14px 44px 14px 16px; 
+          border-radius: 12px;
+          border: 2px solid #e2e8f0;
+          background: #f8fafc;
+          font-size: 14px;
+          font-weight: 600;
+          color: #0f172a;
+          outline: none;
+          transition: all 0.2s;
+          box-sizing: border-box;
+          font-family: inherit;
+        }
+        .custom-input:focus { border-color: #3b82f6; background: #fff; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
 
-      <div>
-        <Input
-          label="Email Address"
-          type="email"
-          placeholder="staf_umum@jt.go.id"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        .eye-button {
+          position: absolute;
+          right: 12px; 
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          padding: 0;
+          margin: 0;
+        }
+        .eye-button:hover { color: #0f172a; }
+
+        .options-row { display: flex; justify-content: space-between; align-items: center; margin-top: -4px; flex-wrap: wrap; gap: 8px; }
+        .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; }
+
+        /* 🔥 PERBAIKAN TOMBOL LUPA PASSWORD 🔥 */
+        .forgot-btn {
+          background: none; border: none; padding: 0; 
+          font-size: 13px; color: #2563eb; font-weight: 700; 
+          cursor: pointer; font-family: inherit; transition: color 0.2s;
+        }
+        .forgot-btn:hover { color: #1d4ed8; text-decoration: underline; }
+
+        @media (max-width: 900px) {
+          .custom-input { padding: 12px 40px 12px 14px; font-size: 13px; }
+          .options-row { font-size: 12px !important; }
+        }
+      `}} />
+
+      {error && <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: 600, background: '#fef2f2', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>⚠️ {error}</div>}
+
+      <div className="input-wrapper">
+        <label className="input-label">Email Address</label>
+        <div className="relative-box">
+          <input type="email" required placeholder="staf_umum@jt.go.id" value={email} onChange={(e) => setEmail(e.target.value)} className="custom-input" />
+        </div>
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <Input
-          label="Password"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-8px' }}>
-          <button 
-            type="button" 
-            onClick={handleLupaPassword}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: '#2563eb', 
-              fontSize: '13px', 
-              fontWeight: 600, 
-              cursor: 'pointer' 
-            }}
-          >
-            Lupa Password?
+      <div className="input-wrapper">
+        <label className="input-label">Kata Sandi</label>
+        <div className="relative-box">
+          <input type={showPassword ? "text" : "password"} required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="custom-input" />
+          <button type="button" onClick={() => setShowPassword(!showPassword)} className="eye-button">
+            {showPassword ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            )}
           </button>
         </div>
       </div>
 
-      <div style={{ marginTop: '12px' }}>
-        <Button type="submit" isLoading={isLoading}>
-          Sign In (User Bagian)
-        </Button>
+      <div className="options-row">
+        <label className="checkbox-label">
+          <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} style={{ accentColor: '#2563eb', width: '16px', height: '16px' }} />
+          Ingat Saya
+        </label>
+        {/* KEMBALIKAN FUNGSI ROUTER PUSH */}
+        <button type="button" onClick={() => router.push('/forgot-password')} className="forgot-btn">
+          Lupa Password?
+        </button>
       </div>
+
+      <Button type="submit" isLoading={isLoading} style={{ borderRadius: '12px', padding: '14px', fontWeight: 800, marginTop: '8px' }}>Sign In (User Bagian)</Button>
     </form>
   );
 }

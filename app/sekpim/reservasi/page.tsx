@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/axios';
-import Button from '@/components/ui/Button';
+import { toast, Toaster } from 'react-hot-toast';
 
 export default function KelolaReservasiPage() {
   const [user, setUser] = useState<any>(null);
   const [reservations, setReservations] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Filter & Search
   const [filterStatus, setFilterStatus] = useState('all');
@@ -20,12 +21,9 @@ export default function KelolaReservasiPage() {
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   
-  // STATE UNTUK CUSTOM PREMIUM ALERT (SweetAlert UI)
+  // STATE UNTUK CUSTOM PREMIUM ALERT
   const [customAlert, setCustomAlert] = useState({
-    isOpen: false,
-    type: 'success', // 'success', 'error'
-    title: '',
-    message: ''
+    isOpen: false, type: 'success', title: '', message: ''
   });
   
   // Data State
@@ -36,6 +34,21 @@ export default function KelolaReservasiPage() {
     room_id: '', other_location: '', origin_unit: '', pejabat_pelaksana: '', pejabat_pendamping: '',
     category_label: '', status: 'verified', rejection_reason: ''
   });
+
+  // PENGUNCI SCROLL BAWAAN REACT
+  useEffect(() => {
+    if (isFormModalOpen || isVerifyModalOpen || isRejectModalOpen || customAlert.isOpen) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [isFormModalOpen, isVerifyModalOpen, isRejectModalOpen, customAlert.isOpen]);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -63,6 +76,9 @@ export default function KelolaReservasiPage() {
 
   const handleSaveReservasi = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    const loadToast = toast.loading('Menyimpan data...');
+
     try {
       const payload = { ...formData, user_id: user?.id };
       
@@ -89,39 +105,27 @@ export default function KelolaReservasiPage() {
       setIsFormModalOpen(false);
       fetchInitialData();
 
-      setCustomAlert({
-        isOpen: true,
-        type: 'success',
-        title: isEditMode ? 'Perubahan Tersimpan!' : 'Berhasil Ditambahkan!',
-        message: isEditMode ? 'Data reservasi telah berhasil diperbarui.' : 'Reservasi baru berhasil masuk ke dalam database MySQL.'
-      });
+      toast.success(isEditMode ? 'Perubahan Tersimpan!' : 'Reservasi Berhasil Dibuat!', { id: loadToast });
       
     } catch (error: any) { 
-      const responseData = error.response?.data;
-      let errorMsg = 'Terjadi kesalahan sistem yang tidak diketahui.';
-      
+      let errorMsg = 'Terjadi kesalahan sistem.';
       if (error.response?.status === 422) {
-        if (responseData?.errors) {
-          const validationErrors = responseData.errors;
-          const firstErrorKey = Object.keys(validationErrors)[0];
-          errorMsg = validationErrors[firstErrorKey][0];
-        } else if (responseData?.message) {
-          errorMsg = responseData.message;
+        if (error.response.data?.errors) {
+          errorMsg = error.response.data.errors[Object.keys(error.response.data.errors)[0]][0];
+        } else if (error.response.data?.message) {
+          errorMsg = error.response.data.message;
         }
-      } else if (responseData?.message) {
-        errorMsg = responseData.message;
       }
-
-      setCustomAlert({
-        isOpen: true,
-        type: 'error',
-        title: 'Gagal Menyimpan',
-        message: errorMsg
-      });
+      toast.error('Gagal menyimpan.', { id: loadToast });
+      setCustomAlert({ isOpen: true, type: 'error', title: 'Gagal Menyimpan', message: errorMsg });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const executeVerify = async (status: string) => {
+    setIsSubmitting(true);
+    const loadToast = toast.loading('Memproses verifikasi...');
     try {
       await api.put(`/reservations/${selectedItem.id}/verify`, {
         status,
@@ -133,19 +137,11 @@ export default function KelolaReservasiPage() {
       setIsRejectModalOpen(false);
       fetchInitialData();
 
-      setCustomAlert({
-        isOpen: true,
-        type: 'success',
-        title: status === 'verified' ? 'Berhasil Disetujui!' : 'Berhasil Ditolak!',
-        message: `Status reservasi telah berhasil diperbarui.`
-      });
+      toast.success(status === 'verified' ? 'Agenda Disetujui!' : 'Agenda Ditolak.', { id: loadToast });
     } catch (e) { 
-      setCustomAlert({
-        isOpen: true,
-        type: 'error',
-        title: 'Verifikasi Gagal',
-        message: 'Terjadi kesalahan saat memproses data ke server.'
-      });
+      toast.error('Gagal memproses verifikasi.', { id: loadToast });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -184,18 +180,12 @@ export default function KelolaReservasiPage() {
   const isAsisten = user?.role === 'asisten';
   const disableForAsisten = isAsisten && isEditMode;
 
-  // 🚀 FUNGSI LOKASI SAPU BERSIH (MENAMPILKAN APA ADANYA)
   const getLocationDisplay = (item: any) => {
-    // 1. Jika relasi database "room" ada dan memiliki nama, langsung tampilkan
     if (item.room && (item.room.room_name || item.room.name)) {
       return item.room.room_name || item.room.name;
     }
-    
-    // 2. Jika tidak ada relasi ruangan, tampilkan apapun yang ada di kolom lokasi (other_location atau location)
     if (item.other_location) return item.other_location;
-    if (item.location) return item.location; // Berjaga-jaga jika backend memakai nama kolom 'location'
-    
-    // 3. Jika benar-benar kosong dari database
+    if (item.location) return item.location;
     return '-';
   };
 
@@ -208,95 +198,251 @@ export default function KelolaReservasiPage() {
   });
 
   return (
-    <div className="mega-container">
+    <div className="reservasi-container">
+      <Toaster position="top-center" />
       <style dangerouslySetInnerHTML={{__html: `
-        .mega-container { padding: 32px 40px; font-family: 'Inter', sans-serif; max-width: 1200px; margin: 0 auto; box-sizing: border-box; }
+        /* ========================================= */
+        /* BASE & TYPOGRAPHY                         */
+        /* ========================================= */
+        .reservasi-container { 
+          padding: 24px 32px; font-family: var(--font-jakarta), sans-serif; 
+          max-width: 1140px; margin: 0 auto; box-sizing: border-box; 
+          animation: slideUpFade 0.5s ease; text-align: left;
+        }
         
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 20px; }
-        .header-title h1 { font-size: 28px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.5px; }
-        .header-title p { color: #64748b; margin: 0; font-size: 15px; }
-        .btn-tambah { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2); flex-shrink: 0; }
-        .btn-tambah:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(37, 99, 235, 0.3); }
+        .font-heading { font-family: var(--font-outfit), sans-serif !important; }
+        .font-body { font-family: var(--font-jakarta), sans-serif !important; }
 
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 20px; text-align: left; }
+        .header-title h1 { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; letter-spacing: -0.5px; text-align: left; }
+        .header-title p { color: #64748b; margin: 0; font-size: 14px; font-weight: 500; text-align: left; }
+        
+        .btn-tambah { 
+          background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: white; border: none; 
+          padding: 12px 20px; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; 
+          transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; 
+          box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); flex-shrink: 0; font-family: inherit; 
+        }
+        .btn-tambah:hover { transform: translateY(-2px); box-shadow: 0 8px 15px -3px rgba(79, 70, 229, 0.3); }
+
+        /* --- CONTROLS: FILTER & SEARCH --- */
         .controls-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; width: 100%; }
         
         .filter-pills-container { width: 100%; max-width: 600px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex: 1; }
         .filter-pills-container::-webkit-scrollbar { display: none; }
-        .filter-pills { display: flex; gap: 10px; width: max-content; padding-bottom: 4px; }
+        .filter-pills { display: flex; gap: 8px; width: max-content; padding-bottom: 4px; }
         
-        .pill-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid #e2e8f0; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
-        .pill-btn.active { background: #0f172a; color: white; border-color: #0f172a; }
+        .pill-btn { padding: 10px 18px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; font-size: 13px; cursor: pointer; transition: 0.2s; white-space: nowrap; font-family: inherit; }
+        .pill-btn.active { background: #1e1b4b; color: white; border-color: #1e1b4b; box-shadow: 0 4px 6px rgba(30, 27, 75, 0.2); }
         .pill-btn.inactive { background: white; color: #64748b; }
-        .pill-btn.inactive:hover { background: #f1f5f9; }
+        .pill-btn.inactive:hover { background: #f8fafc; border-color: #cbd5e1; }
 
-        .search-bar { background: white; padding: 10px 16px; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 10px; min-width: 280px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .search-input { border: none; outline: none; width: 100%; font-size: 14px; color: #0f172a; background: transparent; }
+        .search-bar { background: white; padding: 12px 16px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 10px; min-width: 280px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: 0.2s; }
+        .search-bar:focus-within { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+        .search-input { border: none; outline: none; width: 100%; font-size: 14px; font-weight: 600; color: #0f172a; background: transparent; font-family: inherit; text-align: left; }
+        .search-input::placeholder { color: #94a3b8; font-weight: 500; }
 
-        .table-wrapper { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.02); }
-        .mega-table { width: 100%; border-collapse: collapse; text-align: left; }
-        .mega-table th { background: #f8fafc; padding: 16px 20px; color: #475569; font-size: 13px; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-        .mega-table td { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #0f172a; vertical-align: middle; }
-        .mega-table tbody tr:hover { background: #f8fafc; }
+        /* --- DESKTOP TABLE --- */
+        .table-container { background: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; }
+        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .table-scroll::-webkit-scrollbar { height: 6px; }
+        .table-scroll::-webkit-scrollbar-track { background: #f8fafc; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; display: inline-block; letter-spacing: 0.5px; }
-
-        .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
-        .btn-act { padding: 8px 16px; border-radius: 10px; font-weight: 700; font-size: 13px; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
-        .btn-act.terima { background: #dcfce7; color: #15803d; } .btn-act.terima:hover { background: #bbf7d0; }
-        .btn-act.tolak { background: #fee2e2; color: #b91c1c; } .btn-act.tolak:hover { background: #fecaca; }
-        .btn-act.edit { background: #eff6ff; color: #1d4ed8; } .btn-act.edit:hover { background: #dbeafe; }
-
-        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 9998; padding: 16px; }
-        .modal-card { background: white; padding: 32px; border-radius: 24px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); max-height: 90vh; overflow-y: auto; }
+        .modern-table { width: 100%; min-width: 950px; border-collapse: collapse; text-align: left; }
+        .modern-table th { background: #f8fafc; padding: 16px 20px; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: left; }
+        .modern-table th.center-col { text-align: center; }
         
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-label { font-size: 13px; font-weight: 700; color: #475569; }
-        .form-input { padding: 12px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 14px; width: 100%; box-sizing: border-box; background: #f8fafc; transition: 0.2s; outline: none; }
-        .form-input:focus { border-color: #3b82f6; background: white; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-        .form-input:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border-color: #e2e8f0; }
-        .full-col { grid-column: span 2; }
+        .modern-table td { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; vertical-align: top; text-align: left; transition: background 0.2s ease; }
+        .modern-table tbody tr:hover td { background: #f8fafc; }
+        .modern-table tbody tr:last-child td { border-bottom: none; }
 
-        /* ANIMASI CUSTOM ALERT PREMIUM */
-        @keyframes popIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .primary-text { font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block; line-height: 1.4; text-align: left; }
+        .secondary-text { font-size: 13px; color: #475569; font-weight: 600; display: flex; align-items: center; justify-content: flex-start; gap: 6px; text-align: left; }
 
-        @media (max-width: 1024px) {
-          .mega-container { padding: 24px; }
-          .filter-pills-container { max-width: 100%; }
+        .status-badge { padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.5px; white-space: nowrap; border: 1px solid transparent; }
+
+        .action-btns { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
+        .btn-act { padding: 8px 14px; border-radius: 10px; font-weight: 800; font-size: 13px; border: none; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: 6px; white-space: nowrap; font-family: inherit; }
+        .btn-act.terima { background: #dcfce7; color: #15803d; } .btn-act.terima:hover { background: #bbf7d0; transform: translateY(-1px); }
+        .btn-act.tolak { background: #fee2e2; color: #b91c1c; } .btn-act.tolak:hover { background: #fecaca; transform: translateY(-1px); }
+        .btn-act.edit { background: #f1f5f9; color: #4f46e5; border: 1px solid #e2e8f0; width: 100%; } .btn-act.edit:hover { background: #e0e7ff; border-color: #c7d2fe; transform: translateY(-1px); }
+
+        /* ========================================= */
+        /* 🔥 FIX MUTLAK SCROLL MODAL ANDROID & iOS 🔥 */
+        /* ========================================= */
+        .modal-overlay { 
+          position: fixed; 
+          inset: 0; 
+          background: rgba(15, 23, 42, 0.75); 
+          backdrop-filter: blur(8px); 
+          z-index: 9998; 
+          padding: 16px; 
+          display: flex; 
+          flex-direction: column;
+          align-items: center; 
+          justify-content: flex-start; /* Kunci penahan agar atas tidak kepotong */
+          overflow-y: auto; 
+          -webkit-overflow-scrolling: touch; 
+          overscroll-behavior: contain; 
+        }
+        
+        .modal-card { 
+          background: white; 
+          padding: 32px; 
+          border-radius: 24px; 
+          width: 100%; 
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); 
+          animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
+          text-align: left; 
+          flex-shrink: 0; /* Cegah penyok */
         }
 
-        @media (max-width: 768px) {
-          .mega-container { padding: 16px; overflow-x: hidden; }
+        /* KHUSUS MODAL TINGGI (FORM) */
+        .modal-form-tall {
+          max-width: 800px;
+          margin: 40px auto 100px auto; /* Margin bawah 100px agar aman dari Nav Bar Android */
+        }
+
+        /* KHUSUS MODAL PENDEK (AKSI) */
+        .modal-action-short {
+          max-width: 380px;
+          margin: auto; /* Otomatis ke tengah karena kontennya pendek */
+        }
+        
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+        .form-label { font-size: 13px; font-weight: 800; color: #334155; text-align: left; }
+        
+        /* 🔥 FIX MUTLAK iOS: Mencegah input luber & menjaga presisi vertikal 🔥 */
+        .form-input { 
+          display: block;
+          width: 100%; 
+          max-width: 100%;
+          min-width: 0;
+          height: 52px; 
+          padding: 14px 16px; 
+          line-height: 20px; 
+          border-radius: 12px; 
+          border: 2px solid #e2e8f0; 
+          font-size: 14px; 
+          box-sizing: border-box !important; 
+          background: #f8fafc; 
+          transition: 0.2s; 
+          outline: none; 
+          font-family: inherit; 
+          font-weight: 600; 
+          color: #0f172a; 
+          text-align: left; 
+          margin: 0;
+          -webkit-appearance: none;
+          appearance: none;
+        }
+
+        select.form-input {
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+          background-repeat: no-repeat; 
+          background-position: right 16px center; 
+          background-size: 20px;
+          padding-right: 40px;
+        }
+
+        .form-input:focus { border-color: #4f46e5; background: white; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
+        .form-input:disabled { 
+          background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border-color: #e2e8f0; 
+          -webkit-text-fill-color: #64748b; 
+        }
+        
+        @media (hover: hover) and (pointer: fine) {
+          input[type="datetime-local"].form-input {
+            -webkit-appearance: auto;
+            appearance: auto;
+            padding: 0 16px;
+          }
+        }
+
+        .full-col { grid-column: span 2; }
+        
+        .section-divider { grid-column: span 2; display: flex; align-items: center; margin: 8px 0; }
+        .divider-line { flex: 1; height: 1px; background-color: #e2e8f0; }
+        .divider-text { padding: 0 16px; font-size: 12px; color: #94a3b8; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; text-align: center; }
+
+        /* TOMBOL MODAL */
+        .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; width: 100%; }
+        .btn-modal { display: flex; align-items: center; justify-content: center; text-align: center; padding: 14px 16px; border-radius: 14px; font-weight: 800; font-size: 14px; border: none; cursor: pointer; transition: 0.2s; font-family: inherit; width: 100%; }
+        
+        .btn-submit-action { background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%); color: white; box-shadow: 0 4px 6px rgba(67, 56, 202, 0.2); }
+        .btn-submit-action:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(67, 56, 202, 0.3); }
+        
+        .btn-terima-action { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
+        .btn-terima-action:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3); }
+        
+        .btn-tolak-action { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
+        .btn-tolak-action:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.3); }
+        
+        .btn-cancel { background: #f1f5f9; color: #475569; }
+        .btn-cancel:hover:not(:disabled) { background: #e2e8f0; color: #0f172a; }
+        .btn-modal:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        @keyframes popIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes slideUpFade { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* 🔥 MODE KARTU (CARD LAYOUT) UNTUK IPAD & MOBILE 🔥 */
+        @media (max-width: 1024px) {
+          .reservasi-container { padding: 20px; }
           .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
           .btn-tambah { width: 100%; justify-content: center; padding: 14px; }
-          .controls-row { flex-direction: column-reverse; align-items: stretch; width: 100%; }
-          .filter-pills-container { max-width: calc(100vw - 32px); }
+          .controls-row { flex-direction: column-reverse; align-items: stretch; margin-bottom: 20px; gap: 12px; }
+          .filter-pills-container { max-width: calc(100vw - 40px); }
           .search-bar { width: 100%; box-sizing: border-box; }
-          .mega-table thead { display: none; }
-          .mega-table tr { display: block; padding: 16px; border-bottom: 8px solid #f1f5f9; position: relative; }
-          .mega-table td { display: block; padding: 8px 0; text-align: right; border: none; position: relative; padding-left: 40%; font-size: 14px; }
-          .mega-table td::before { content: attr(data-label); position: absolute; left: 0; font-weight: 700; color: #64748b; text-align: left; }
-          .action-btns { width: 100%; flex-direction: row; margin-top: 12px; }
-          .btn-act { flex: 1; padding: 12px; }
-          .form-grid { grid-template-columns: 1fr; }
-          .full-col { grid-column: span 1; }
+          
+          .table-container { background: transparent; border: none; box-shadow: none; overflow: visible; }
+          .table-scroll { overflow: visible; }
+          .modern-table, .modern-table tbody { display: block; width: 100%; min-width: 100%; }
+          .modern-table thead { display: none; }
+          
+          .modern-table tr { 
+            display: flex; flex-direction: column; gap: 16px; background: #fff; margin-bottom: 16px; 
+            padding: 20px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); text-align: left;
+          }
+          
+          .modern-table td { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; text-align: left; padding: 0; border: none; width: 100% !important; }
+          
+          .modern-table td::before { content: attr(data-label); font-size: 11px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; margin-bottom: 6px; display: block; text-align: left; }
+          .modern-table td[data-label="Aksi"]::before { display: none; }
+          .modern-table td[data-label="Aksi"] { margin-top: 8px; padding-top: 16px; border-top: 1px dashed #cbd5e1; width: 100%; }
+
+          .action-btns { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; justify-content: stretch; }
+          .action-btns .btn-act.edit { grid-column: span 2; }
+          .action-btns .btn-act { padding: 12px; width: 100%; justify-content: center; text-align: center; }
+
+          .form-grid { grid-template-columns: 1fr; gap: 16px; }
+          .full-col, .section-divider { grid-column: span 1; }
+          
           .modal-card { padding: 24px; }
+          .modal-form-tall { margin: 20px auto 100px auto; } /* Aman dari Nav Bar Android */
+        }
+
+        @media (max-width: 480px) {
+          .modal-actions { grid-template-columns: 1fr; gap: 10px; }
         }
       `}} />
 
       {/* HEADER */}
       <div className="page-header">
         <div className="header-title">
-          <h1>Kelola Reservasi</h1>
-          <p>Verifikasi pengajuan dari unit kerja atau buat agenda baru.</p>
+          <h1 className="font-heading">Kelola Reservasi</h1>
+          <p className="font-body">Verifikasi pengajuan dari unit kerja atau buat agenda baru.</p>
         </div>
-        <button className="btn-tambah" onClick={openAdd}>
-          <span style={{ fontSize: '18px' }}>+</span> Tambah Reservasi Baru
+        <button className="btn-tambah font-body" onClick={openAdd}>
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"></path></svg>
+          Tambah Reservasi Baru
         </button>
       </div>
 
       {/* FILTER & PENCARIAN */}
-      <div className="controls-row">
+      <div className="controls-row font-body">
         <div className="filter-pills-container">
           <div className="filter-pills">
             {['all', 'pending', 'verified', 'rejected'].map(s => (
@@ -311,7 +457,7 @@ export default function KelolaReservasiPage() {
           </div>
         </div>
         <div className="search-bar">
-          <span style={{ color: '#94a3b8' }}>🔍</span>
+          <svg width="20" height="20" fill="none" stroke="#94a3b8" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           <input 
             type="text" 
             className="search-input" 
@@ -322,92 +468,135 @@ export default function KelolaReservasiPage() {
         </div>
       </div>
 
-      {/* TABEL DATA */}
-      <div className="table-wrapper">
-        {isLoading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-            <div style={{ width: '32px', height: '32px', border: '3px solid #f1f5f9', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }}></div>
-            Memuat data reservasi...
-          </div>
-        ) : displayData.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-            <span style={{ fontSize: '40px', display: 'block', marginBottom: '10px' }}>📄</span>
-            <span style={{ fontWeight: 600 }}>Tidak ada data yang ditemukan.</span>
-          </div>
-        ) : (
-          <table className="mega-table">
-            <thead>
-              <tr>
-                <th>Detail Kegiatan</th>
-                <th>Waktu</th>
-                <th>Lokasi</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayData.map((item: any) => (
-                <tr key={item.id}>
-                  <td data-label="Detail Kegiatan">
-                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.event_name}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                      {item.origin_unit ? `🏢 ${item.origin_unit}` : '👤 Sekretariat Pimpinan'}
-                    </div>
-                  </td>
-                  <td data-label="Waktu">
-                    <div style={{ fontWeight: 600 }}>{new Date(item.start_time).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>{new Date(item.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</div>
-                  </td>
-                  <td data-label="Lokasi">
-                    {/* IMPLEMENTASI FUNGSI PENCEGAH LOKASI SAPU BERSIH */}
-                    {getLocationDisplay(item)}
-                  </td>
-                  <td data-label="Status">
-                    <span 
-                      className="status-badge" 
-                      style={{ 
-                        backgroundColor: item.status === 'verified' ? '#dcfce7' : (item.status === 'rejected' ? '#fee2e2' : '#fef3c7'), 
-                        color: item.status === 'verified' ? '#15803d' : (item.status === 'rejected' ? '#b91c1c' : '#b45309') 
-                      }}
-                    >
-                      {item.status ? item.status.toUpperCase() : 'PENDING'}
-                    </span>
-                  </td>
-                  <td data-label="Aksi">
-                    <div className="action-btns">
-                      {item.status === 'pending' || !item.status ? (
-                        <>
-                          <button className="btn-act terima" onClick={() => { setSelectedItem(item); setIsVerifyModalOpen(true); }}>✓ Terima</button>
-                          <button className="btn-act tolak" onClick={() => { setSelectedItem(item); setIsRejectModalOpen(true); }}>✕ Tolak</button>
-                        </>
-                      ) : (
-                        <button className="btn-act edit" onClick={() => openEdit(item)}>✏️ Edit</button>
-                      )}
-                    </div>
-                  </td>
+      {/* TABEL DATA / CARD LIST */}
+      <div className="table-container font-body">
+        <div className="table-scroll">
+          {isLoading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+              <div style={{ width: '32px', height: '32px', border: '3px solid #f1f5f9', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }}></div>
+              <span style={{ fontSize: '14px', fontWeight: 700 }}>Memuat data reservasi...</span>
+            </div>
+          ) : displayData.length === 0 ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: '#64748b', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: '#94a3b8' }}>
+                <svg width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              </div>
+              <span className="font-heading" style={{ fontWeight: 800, color: '#0f172a', fontSize: '18px', display: 'block', marginBottom: '8px' }}>Tidak ada data ditemukan.</span>
+            </div>
+          ) : (
+            <table className="modern-table">
+              <thead className="font-heading">
+                <tr>
+                  <th style={{ width: '30%' }}>Detail Kegiatan</th>
+                  <th style={{ width: '25%' }}>Waktu Pelaksanaan</th>
+                  <th style={{ width: '20%' }}>Lokasi Ruangan</th>
+                  <th style={{ width: '10%' }}>Status</th>
+                  <th className="center-col" style={{ width: '15%' }}>Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {displayData.map((item: any) => (
+                  <tr key={item.id}>
+                    
+                    {/* DETAIL KEGIATAN */}
+                    <td data-label="Detail Kegiatan">
+                      <span className="primary-text font-heading" style={{ fontSize: '16px' }}>{item.event_name}</span>
+                      <div className="secondary-text">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                        <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px', color: '#0f172a', fontWeight: 700 }}>{item.origin_unit || 'Sekretariat Pimpinan'}</span>
+                      </div>
+                    </td>
+
+                    {/* WAKTU PELAKSANAAN */}
+                    <td data-label="Waktu Pelaksanaan">
+                      <span className="primary-text">
+                        {new Date(item.start_time).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                      <div className="secondary-text" style={{ color: '#4f46e5', fontWeight: 700 }}>
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline strokeLinecap="round" strokeLinejoin="round" points="12 6 12 12 16 14"></polyline></svg>
+                        {new Date(item.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                      </div>
+                    </td>
+
+                    {/* LOKASI RUANGAN */}
+                    <td data-label="Lokasi Ruangan">
+                      <span className="primary-text" style={{ color: '#475569', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <svg width="16" height="16" fill="none" stroke="#f59e0b" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        {getLocationDisplay(item)}
+                      </span>
+                    </td>
+
+                    {/* STATUS */}
+                    <td data-label="Status">
+                      <span 
+                        className="status-badge" 
+                        style={{ 
+                          backgroundColor: item.status === 'verified' ? '#dcfce7' : (item.status === 'rejected' ? '#fee2e2' : '#fef3c7'), 
+                          color: item.status === 'verified' ? '#15803d' : (item.status === 'rejected' ? '#b91c1c' : '#b45309'),
+                          borderColor: item.status === 'verified' ? '#bbf7d0' : (item.status === 'rejected' ? '#fecaca' : '#fde68a')
+                        }}
+                      >
+                        {item.status === 'verified' ? (
+                          <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg> DISETUJUI</>
+                        ) : item.status === 'rejected' ? (
+                          <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg> DITOLAK</>
+                        ) : (
+                          <><div style={{ width: '6px', height: '6px', background: '#d97706', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div> MENUNGGU</>
+                        )}
+                      </span>
+                    </td>
+
+                    {/* AKSI / TINDAKAN */}
+                    <td data-label="Aksi">
+                      <div className="action-btns">
+                        {item.status === 'pending' || !item.status ? (
+                          <>
+                            <button className="btn-act terima" onClick={() => { setSelectedItem(item); setIsVerifyModalOpen(true); }}>
+                              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                              Terima
+                            </button>
+                            <button className="btn-act tolak" onClick={() => { setSelectedItem(item); setIsRejectModalOpen(true); }}>
+                              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                              Tolak
+                            </button>
+                          </>
+                        ) : (
+                          <button className="btn-act edit" onClick={() => openEdit(item)}>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* ========================================= */}
-      {/* MODAL FORM (TAMBAH / EDIT)                */}
+      {/* MODAL FORM (TAMBAH / EDIT) PREMIUM        */}
       {/* ========================================= */}
       {isFormModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '800px' }}>
-            <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 800 }}>{isEditMode ? 'Edit Reservasi' : 'Tambah Reservasi Baru'}</h2>
-            <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '14px' }}>
-              {disableForAsisten ? 'Anda login sebagai Asisten. Hanya dapat merubah Pelaksana & Pendamping.' : 'Lengkapi formulir di bawah ini dengan cermat.'}
+          <div className="modal-card modal-form-tall">
+            <h2 className="font-heading" style={{ margin: '0 0 8px 0', fontSize: '26px', fontWeight: 800, color: '#0f172a', textAlign: 'left' }}>{isEditMode ? 'Edit Reservasi' : 'Tambah Reservasi Baru'}</h2>
+            <p className="font-body" style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '14px', textAlign: 'left' }}>
+              {disableForAsisten ? 'Mode Asisten: Hanya dapat mengubah Pelaksana & Pendamping.' : 'Lengkapi formulir penjadwalan di bawah ini dengan cermat.'}
             </p>
             
-            <form onSubmit={handleSaveReservasi} className="form-grid">
+            <form onSubmit={handleSaveReservasi} className="form-grid font-body">
               
+              <div className="section-divider">
+                <div className="divider-line"></div><span className="divider-text">Detail Inti</span><div className="divider-line"></div>
+              </div>
+
               <div className="form-group full-col">
                 <label className="form-label">Asal Unit / Instansi Pemohon <span style={{color: '#ef4444'}}>*</span></label>
-                <input className="form-input" disabled={disableForAsisten} required value={formData.origin_unit || ''} onChange={e => setFormData({...formData, origin_unit: e.target.value})} placeholder="Contoh: Sekretariat Pimpinan" />
+                <input className="form-input" disabled={disableForAsisten} required value={formData.origin_unit || ''} onChange={e => setFormData({...formData, origin_unit: e.target.value})} placeholder="Contoh: Sekretariat Pimpinan / Sudin Kesehatan" />
               </div>
 
               <div className="form-group full-col">
@@ -425,6 +614,10 @@ export default function KelolaReservasiPage() {
                 <input type="datetime-local" className="form-input" disabled={disableForAsisten} required value={formData.end_time || ''} onChange={e => setFormData({...formData, end_time: e.target.value})} />
               </div>
               
+              <div className="section-divider">
+                <div className="divider-line"></div><span className="divider-text">Lokasi & Label</span><div className="divider-line"></div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Tipe Lokasi</label>
                 <select className="form-input" disabled={disableForAsisten} value={formData.location_type || 'ruangan_terdaftar'} onChange={e => setFormData({...formData, location_type: e.target.value})}>
@@ -455,86 +648,112 @@ export default function KelolaReservasiPage() {
                 <input className="form-input" disabled={disableForAsisten} value={formData.category_label || ''} onChange={e => setFormData({...formData, category_label: e.target.value})} placeholder="Contoh: Agenda VIP" />
               </div>
 
+              <div className="section-divider">
+                <div className="divider-line"></div><span className="divider-text">Area Bebas Edit</span><div className="divider-line"></div>
+              </div>
+
               <div className="form-group">
-                <label className="form-label">Pejabat Pelaksana</label>
-                <input className="form-input" value={formData.pejabat_pelaksana || ''} onChange={e => setFormData({...formData, pejabat_pelaksana: e.target.value})} placeholder="Contoh: Walikota" autoFocus={disableForAsisten} />
+                <label className="form-label" style={{ color: '#047857' }}>Pejabat Pelaksana</label>
+                <input className="form-input" style={{ borderColor: '#10b981', backgroundColor: '#f0fdf4' }} value={formData.pejabat_pelaksana || ''} onChange={e => setFormData({...formData, pejabat_pelaksana: e.target.value})} placeholder="Contoh: Walikota" autoFocus={disableForAsisten} />
               </div>
               
               <div className="form-group">
-                <label className="form-label">Pejabat Pendamping</label>
-                <input className="form-input" value={formData.pejabat_pendamping || ''} onChange={e => setFormData({...formData, pejabat_pendamping: e.target.value})} placeholder="Contoh: Asisten Pemerintahan" />
+                <label className="form-label" style={{ color: '#047857' }}>Pejabat Pendamping</label>
+                <input className="form-input" style={{ borderColor: '#10b981', backgroundColor: '#f0fdf4' }} value={formData.pejabat_pendamping || ''} onChange={e => setFormData({...formData, pejabat_pendamping: e.target.value})} placeholder="Contoh: Asisten Pemerintahan" />
               </div>
 
-              <div className="full-col" style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
-                <Button type="submit" style={{ flex: '1 1 200px', background: '#0f172a', padding: '14px', fontSize: '14px' }}>
-                  {isEditMode ? 'Simpan Perubahan' : 'Tambahkan Reservasi'}
-                </Button>
-                <Button type="button" onClick={() => setIsFormModalOpen(false)} style={{ flex: '1 1 200px', background: '#f1f5f9', color: '#475569', padding: '14px', fontSize: '14px' }}>
+              <div className="full-col modal-actions">
+                <button type="submit" disabled={isSubmitting} className="btn-modal btn-submit-action">
+                  {isSubmitting ? (
+                    <><div style={{ width: '16px', height: '16px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite', marginRight: '8px' }}></div> Menyimpan...</>
+                  ) : (
+                    isEditMode ? 'Simpan Perubahan' : 'Tambahkan Reservasi'
+                  )}
+                </button>
+                <button type="button" disabled={isSubmitting} onClick={() => setIsFormModalOpen(false)} className="btn-modal btn-cancel">
                   Batal
-                </Button>
+                </button>
               </div>
+
             </form>
           </div>
         </div>
       )}
 
       {/* ========================================= */}
-      {/* MODAL TERIMA & TOLAK                      */}
+      {/* MODAL TERIMA (QUICK ACTION)               */}
       {/* ========================================= */}
       {isVerifyModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '400px' }}>
-            <div style={{ width: '48px', height: '48px', background: '#dcfce7', color: '#15803d', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '20px' }}>✓</div>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: 800 }}>Terima & Beri Label</h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.5 }}>Label ini akan tampil di kalender resmi Pimpinan.</p>
+        <div className="modal-overlay font-body">
+          <div className="modal-card modal-action-short">
+            <div style={{ width: '56px', height: '56px', background: '#dcfce7', color: '#15803d', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+              <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h3 className="font-heading" style={{ margin: '0 0 8px 0', fontSize: '22px', fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>Terima & Beri Label</h3>
+            <p style={{ fontSize: '13px', color: '#475569', marginBottom: '24px', lineHeight: 1.5, textAlign: 'center' }}>Label ini akan tampil di kalender resmi Pimpinan.</p>
             
-            <input className="form-input" placeholder="Contoh: Agenda Penting / VIP" value={formData.category_label || ''} onChange={e => setFormData({...formData, category_label: e.target.value})} style={{ marginBottom: '24px' }} autoFocus />
+            <input className="form-input" placeholder="Contoh: Agenda Penting / VIP" value={formData.category_label || ''} onChange={e => setFormData({...formData, category_label: e.target.value})} style={{ marginBottom: '20px' }} autoFocus />
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <Button onClick={() => executeVerify('verified')} style={{ background: '#10b981', width: '100%', padding: '14px' }}>Simpan & Setujui</Button>
-              <Button onClick={() => setIsVerifyModalOpen(false)} style={{ background: '#f1f5f9', color: '#64748b', width: '100%', padding: '14px' }}>Batal</Button>
+            <div className="modal-actions" style={{ marginTop: '0' }}>
+              <button onClick={() => executeVerify('verified')} disabled={isSubmitting} className="btn-modal btn-terima-action">
+                {isSubmitting ? 'Memproses...' : 'Simpan & Setujui'}
+              </button>
+              <button onClick={() => setIsVerifyModalOpen(false)} disabled={isSubmitting} className="btn-modal btn-cancel">
+                Batal
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ========================================= */}
+      {/* MODAL TOLAK (QUICK ACTION)                 */}
+      {/* ========================================= */}
       {isRejectModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '400px' }}>
-            <div style={{ width: '48px', height: '48px', background: '#fee2e2', color: '#b91c1c', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '20px' }}>✕</div>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: 800, color: '#ef4444' }}>Tolak Reservasi</h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.5 }}>Berikan alasan agar pemohon mengerti penolakan ini.</p>
+        <div className="modal-overlay font-body">
+          <div className="modal-card modal-action-short">
+            <div style={{ width: '56px', height: '56px', background: '#fee2e2', color: '#b91c1c', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+              <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </div>
+            <h3 className="font-heading" style={{ margin: '0 0 8px 0', fontSize: '22px', fontWeight: 800, color: '#ef4444', textAlign: 'center' }}>Tolak Reservasi</h3>
+            <p style={{ fontSize: '13px', color: '#475569', marginBottom: '24px', lineHeight: 1.5, textAlign: 'center' }}>Berikan alasan agar pemohon mengerti penolakan ini.</p>
             
-            <textarea className="form-input" rows={3} placeholder="Contoh: Jadwal bentrok..." value={formData.rejection_reason || ''} onChange={e => setFormData({...formData, rejection_reason: e.target.value})} style={{ marginBottom: '24px', resize: 'vertical' }} autoFocus />
+            <textarea className="form-input" rows={3} placeholder="Contoh: Jadwal Walikota bentrok..." value={formData.rejection_reason || ''} onChange={e => setFormData({...formData, rejection_reason: e.target.value})} style={{ marginBottom: '20px', resize: 'vertical' }} autoFocus />
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <Button onClick={() => executeVerify('rejected')} style={{ background: '#ef4444', width: '100%', padding: '14px' }}>Kirim Penolakan</Button>
-              <Button onClick={() => setIsRejectModalOpen(false)} style={{ background: '#f1f5f9', color: '#64748b', width: '100%', padding: '14px' }}>Batal</Button>
+            <div className="modal-actions" style={{ marginTop: '0' }}>
+              <button onClick={() => executeVerify('rejected')} disabled={isSubmitting} className="btn-modal btn-tolak-action">
+                {isSubmitting ? 'Memproses...' : 'Kirim Penolakan'}
+              </button>
+              <button onClick={() => setIsRejectModalOpen(false)} disabled={isSubmitting} className="btn-modal btn-cancel">
+                Batal
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* 🚀 CUSTOM PREMIUM ALERT COMPONENT (SWEETALERT REPLACEMENT)*/}
+      {/* CUSTOM PREMIUM ALERT COMPONENT                             */}
       {/* ========================================================= */}
       {customAlert.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px' }}>
-          <div style={{ background: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '380px', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)', animation: 'popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+        <div className="modal-overlay font-body">
+          <div className="modal-card modal-action-short" style={{ padding: '40px', textAlign: 'center' }}>
             
-            <div style={{ width: '70px', height: '70px', margin: '0 auto 20px auto', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px',
-              background: customAlert.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: customAlert.type === 'success' ? '#15803d' : '#b91c1c'
-            }}>
-              {customAlert.type === 'success' ? '✨' : '⚠️'}
+            <div style={{ width: '80px', height: '80px', margin: '0 auto 24px auto', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: customAlert.type === 'success' ? '#dcfce7' : '#fee2e2', color: customAlert.type === 'success' ? '#15803d' : '#b91c1c' }}>
+              {customAlert.type === 'success' ? (
+                <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+              ) : (
+                <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              )}
             </div>
 
-            <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: '0 0 12px 0' }}>{customAlert.title}</h3>
-            <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 28px 0', lineHeight: 1.6 }}>{customAlert.message}</p>
+            <h3 className="font-heading" style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 12px 0', textAlign: 'center' }}>{customAlert.title}</h3>
+            <p className="font-body" style={{ fontSize: '15px', color: '#64748b', margin: '0 0 32px 0', lineHeight: 1.6, textAlign: 'center' }}>{customAlert.message}</p>
 
             <button 
+              className="btn-modal"
               onClick={() => setCustomAlert({...customAlert, isOpen: false})} 
-              style={{ background: customAlert.type === 'success' ? '#10b981' : '#ef4444', color: 'white', border: 'none', padding: '14px', width: '100%', borderRadius: '14px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', transition: '0.2s' }}>
+              style={{ background: customAlert.type === 'success' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
               Mengerti
             </button>
           </div>

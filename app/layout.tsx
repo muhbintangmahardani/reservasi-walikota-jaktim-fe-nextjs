@@ -1,13 +1,24 @@
-// frontend/app/layout.tsx
-import { Inter } from "next/font/google";
-import "./globals.css"; // Memanggil global CSS
+// app/layout.tsx
+import './globals.css';
+import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
 
-// Menggunakan font Inter dengan subset latin
-const inter = Inter({ subsets: ["latin"] });
+// Font untuk Judul (Modern & Elegan)
+const outfit = Outfit({ 
+  subsets: ['latin'],
+  variable: '--font-outfit',
+  weight: ['400', '500', '600', '700', '800']
+});
+
+// Font untuk Teks Data/Paragraf (Sangat Bersih)
+const jakarta = Plus_Jakarta_Sans({ 
+  subsets: ['latin'],
+  variable: '--font-jakarta',
+  weight: ['400', '500', '600', '700']
+});
 
 export const metadata = {
-  title: "Reservasi Ruangan - Kominfotik Jaktim",
-  description: "Sistem Manajemen Reservasi Ruangan Kantor Walikota Jakarta Timur",
+  title: 'Smart Room App | Pemkot Jaktim',
+  description: 'Sistem Manajemen Reservasi Ruangan Cerdas',
 };
 
 export default function RootLayout({
@@ -16,8 +27,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
-      <body className={inter.className}>{children}</body>
+    <html lang="id" className={`${outfit.variable} ${jakarta.variable}`}>
+      <body className="bg-[#f8fafc] text-[#0f172a] antialiased selection:bg-blue-200 selection:text-blue-900">
+        {children}
+      </body>
     </html>
   );
 }

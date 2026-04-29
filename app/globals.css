@@ -1,4 +1,3 @@
-/* frontend/app/globals.css */
 :root {
   --background: #fafafa;
   --foreground: #111111;
@@ -124,8 +123,6 @@ body {
   margin-bottom: 20px;
 }
 
-/* TAMBAHKAN KODE INI DI BAGIAN BAWAH FILE GLOBALS.CSS ANDA */
-
 /* Layout Khusus Halaman Login Split Card */
 .split-wrapper {
   min-height: 100vh;
@@ -220,4 +217,32 @@ body {
     padding-bottom: 16px;
     margin-bottom: 16px;
   }
+}
+
+/* =========================================================
+   --- ANIMASI PERPINDAHAN HALAMAN (PAGE TRANSITION) --- 
+   ========================================================= */
+
+/* 1. Mencegah scrollbar muncul tiba-tiba saat animasi berjalan */
+html {
+  overflow-y: scroll; 
+}
+
+/* 2. Definisi Animasi Mulus (Fade & Slide Up) */
+@keyframes smoothPageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(15px); /* Bergeser ke atas sedikit lebih dinamis */
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 3. Class utama untuk membungkus konten setiap halaman */
+.page-transition-wrapper {
+  animation: smoothPageEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* cubic-bezier(0.16, 1, 0.3, 1) memberikan efek super mulus layaknya iOS */
+  will-change: opacity, transform; 
 }
