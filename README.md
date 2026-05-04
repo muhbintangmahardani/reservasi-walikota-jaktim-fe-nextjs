@@ -17,13 +17,6 @@ Ini adalah repositori *Frontend* untuk **Sistem Informasi Smart Room Kominfotik 
     *   Navigasi tanggal interaktif bergaya *Pill-Shape* dengan fitur *Drag-to-Scroll*.
 *   **Live Polling Dashboard**: Modul khusus untuk Admin yang menarik pembaruan log audit (percobaan *login* gagal, dsb) dari backend secara *real-time*.
 
-## 🛡️ Keamanan Frontend (Security Patches)
-Aplikasi ini telah melalui audit keamanan dinamis menggunakan **OWASP ZAP**. Beberapa penambalan keamanan utama pada *HTTP Headers* (diatur via `next.config.mjs`) meliputi:
-- [x] **X-Frame-Options: DENY** (Perlindungan dari serangan *Clickjacking*).
-- [x] **X-Content-Type-Options: nosniff** (Mencegah MIME-*sniffing*).
-- [x] **Content-Security-Policy** (Pembatasan ketat sumber *resource* eksternal).
-- [x] **Hidden Powered-By** (Menyembunyikan identitas mesin *server* dari *hacker*).
-
 ## 🛠️ Tech Stack
 *   **Framework**: Next.js 14/15 (App Router dengan Turbopack)
 *   **Styling**: Custom CSS (Enterprise UI) & Tailwind CSS
@@ -35,25 +28,24 @@ Aplikasi ini telah melalui audit keamanan dinamis menggunakan **OWASP ZAP**. Beb
 
 1. **Install Dependensi Node.js**
    Jalankan perintah ini di dalam folder `frontend`:
-   \`\`\`bash
+   ```bash
    npm install
-   \`\`\`
+   ```
 
 2. **Konfigurasi Environment**
    Buat file `.env.local` di folder utama `frontend` dan tambahkan URL Backend Anda:
-   \`\`\`env
+   ```env
    NEXT_PUBLIC_API_URL=http://localhost:8000/api
    NEXT_PUBLIC_APP_NAME="Smart Room Kominfotik JT"
-   \`\`\`
+   ```
 
 3. **Jalankan Mode Development**
-   \`\`\`bash
+   ```bash
    npm run dev
-   \`\`\`
+   ```
    *Aplikasi akan berjalan di `http://localhost:3000`*
 
-## 📝 Panduan Commit Log
-Jika Anda berkontribusi pada repositori ini, gunakan format *commit* berikut:
+## 📝 Beberapa Penambahan Commit
 *   `feat(ui):` Penambahan halaman atau komponen baru.
 *   `ux(calendar):` Perbaikan interaksi pengguna, animasi, atau tata letak.
 *   `security(nextjs):` Penambalan celah keamanan di sisi klien atau *headers*.
