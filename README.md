@@ -50,3 +50,7 @@ Ini adalah repositori *Frontend* untuk **Sistem Informasi Smart Room Kominfotik 
 *   `ux(calendar):` Perbaikan interaksi pengguna, animasi, atau tata letak.
 *   `security(nextjs):` Penambalan celah keamanan di sisi klien atau *headers*.
 *   `fix(layout):` Perbaikan *bug* responsivitas pada layar *mobile/tablet*.
+
+## Beberaoa Catatan
+ganti .env be pada bagian app_url dan frontend_url
+ganti next.config.ts ip addressnya, kemudian axios.ts dan .env
